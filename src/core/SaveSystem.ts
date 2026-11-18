@@ -21,6 +21,10 @@ export interface SaveData {
   tamed: string[];
   vehicles: string[];
   quests: Record<string, string>;
+  /** Itération 2 : énergie et structure de chaque véhicule (optionnel pour les anciennes sauvegardes). */
+  vehicleState?: Record<string, VehicleStateData>;
+  /** Santé, satiété, arme, conteneurs fouillés, feux posés (validé à la lecture par Gameplay). */
+  gameplay?: unknown;
 }
 
 export interface SaveBackend {
@@ -52,7 +56,37 @@ export function parseSave(raw: unknown): SaveData | null {
     tamed: r.tamed ?? [],
     vehicles: r.vehicles ?? [],
     quests: r.quests ?? {},
+    vehicleState: sanitizeVehicleState(r.vehicleState),
+    gameplay: r.gameplay && typeof r.gameplay === 'object' ? r.gameplay : undefined,
   };
+}
+
+export interface VehicleStateData {
+  energy: number;
+  hp: number;
+  x?: number;
+  z?: number;
+  yaw?: number;
+}
+
+const num = (v: unknown): v is number => typeof v === 'number' && isFinite(v);
+
+function sanitizeVehicleState(v: unknown): Record<string, VehicleStateData> | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const out: Record<string, VehicleStateData> = {};
+  for (const [k, s] of Object.entries(v as Record<string, unknown>)) {
+    const o = (s ?? {}) as Record<string, unknown>;
+    if (num(o.energy) && num(o.hp)) {
+      const d: VehicleStateData = { energy: Math.min(100, Math.max(0, o.energy)), hp: Math.max(0, o.hp) };
+      if (num(o.x) && num(o.z)) {
+        d.x = o.x;
+        d.z = o.z;
+        d.yaw = num(o.yaw) ? o.yaw : 0;
+      }
+      out[k] = d;
+    }
+  }
+  return out;
 }
 
 export class LocalSaveBackend implements SaveBackend {

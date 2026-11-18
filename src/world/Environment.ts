@@ -18,6 +18,7 @@ import { G } from '../render/Globals.ts';
 import type { Sky } from '../render/Sky.ts';
 import type { Water } from '../render/Water.ts';
 import { clamp, lerp, smoothstep } from './noise.ts';
+import { WIND } from './Wind.ts';
 
 export type WeatherKind = 'clair' | 'brume' | 'orage';
 
@@ -202,7 +203,8 @@ export class Environment {
     G.uFogSunDir.value.copy(this.sunDir);
     G.uFogSunColor.value.copy(sunCol).multiplyScalar(0.35 * smoothstep(-0.05, 0.1, e) * (1 - w.dim));
     G.uNight.value = this.nightFactor;
-    G.uWind.value.set(0.85, 0.5, w.wind);
+    WIND.update(dt, w.wind);
+    G.uWind.value.set(WIND.dir.x, WIND.dir.z, WIND.strength);
     G.uTime.value = this.elapsed;
 
     // Eau
@@ -250,7 +252,7 @@ export class Environment {
   }
 
   get windStrength(): number {
-    return this.cur.wind;
+    return WIND.strength;
   }
   get rainAmount(): number {
     return this.cur.rain;
@@ -288,16 +290,18 @@ class Rain {
         uCam: { value: new Vector3() },
         uT: { value: 0 },
         uRainAmt: { value: 0 },
+        uOff: { value: new Vector3() },
+        uVel: { value: new Vector3(2.5, -22, 1.2) },
         uCol: { value: new Color() },
       },
       vertexShader: /* glsl */ `
         attribute vec4 aSeed;
-        uniform vec3 uCam; uniform float uT;
+        uniform vec3 uCam; uniform float uT; uniform vec3 uOff; uniform vec3 uVel;
         varying float vEnd;
         void main() {
           vec3 box = vec3(70.0, 40.0, 70.0);
-          vec3 vel = vec3(2.5, -22.0, 1.2);
-          vec3 p = aSeed.xyz * box + vel * uT;
+          vec3 vel = uVel;
+          vec3 p = aSeed.xyz * box + uOff;
           p = mod(p - uCam - box * 0.5, box) + uCam - box * 0.5;
           p -= vel * 0.035 * aSeed.w;
           vEnd = aSeed.w;
@@ -321,7 +325,12 @@ class Rain {
     this.mesh.visible = amount > 0.02;
     const u = this.mat.uniforms;
     u.uCam.value.copy(cam);
+    const dt = Math.min(0.1, Math.max(0, t - u.uT.value));
     u.uT.value = t;
+    // Pluie inclinée par le vent (déplacement accumulé : pas de saut quand le vent change).
+    const vel = u.uVel.value as Vector3;
+    vel.set(WIND.dir.x * WIND.strength * 12, -22, WIND.dir.z * WIND.strength * 12);
+    (u.uOff.value as Vector3).addScaledVector(vel, dt);
     u.uRainAmt.value = amount;
     (u.uCol.value as Color).copy(fogColor).multiplyScalar(1.4).addScalar(0.15);
   }

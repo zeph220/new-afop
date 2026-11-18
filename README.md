@@ -37,6 +37,14 @@ ZQSD (AZERTY) ou WASD (QWERTY) pour se déplacer, souris pour la caméra (clique
 Maj pour courir, Espace pour sauter (maintenir en l'air : propulseur Halden), Ctrl/C pour s'accroupir ou lâcher prise,
 F pour la capacité de camp, L pour la lampe (Halden), H pour l'aide, Échap pour la pause. Manette standard prise en charge.
 
+Montures et véhicules (itération 2) : E pour monter / piloter / descendre, R pour appeler sa monture (Sylmar) ou se
+faire livrer un véhicule par drone (Halden), V pour couper le moteur du gyrocoptère. Pour apprivoiser une bête
+(Sylmar) : s'approcher accroupi, E pour l'offrande, répondre à ses trois appels en rythme avec F, puis maintenir E.
+
+## Version de bureau (Windows)
+
+`npm run build:exe` produit un exécutable portable dans `release/` (Electron). Ce dossier n'est pas publié en ligne.
+
 ## Déploiement gratuit
 
 Le build est un site statique (`dist/`), compatible avec tout hébergeur statique.

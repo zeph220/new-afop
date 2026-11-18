@@ -151,7 +151,29 @@ export interface Cylinder {
   platform: boolean; // dessus praticable
 }
 
+/** Tranche de collision d'un modèle (échelle 1) : cylindre de rayon r entre y0 et y1. */
+export interface ColliderSlice {
+  r: number;
+  y0: number;
+  y1: number;
+  climbable: boolean;
+  platform: boolean;
+}
+
+const shapes = new Map<VegLayerId, ColliderSlice[]>();
+
+/** Remplace les collisions d'une couche par la forme mesurée sur son modèle 3D. */
+export function setColliderShape(id: VegLayerId, slices: ColliderSlice[]): void {
+  shapes.set(id, slices);
+  colliderCache.clear();
+}
+
 export function instanceColliders(id: VegLayerId, x: number, y: number, z: number, s: number, out: Cylinder[]): void {
+  const shape = shapes.get(id);
+  if (shape) {
+    for (const c of shape) out.push({ x, z, r: c.r * s, y0: y + c.y0 * s - (c.y0 <= 0.01 ? 1 : 0), y1: y + c.y1 * s, climbable: c.climbable, platform: c.platform });
+    return;
+  }
   if (id === 'colonnier') {
     const H = COLONNIER.height * s;
     out.push({ x, z, r: ((COLONNIER.trunkBase + COLONNIER.trunkTop) / 2) * s + 0.15, y0: y - 4, y1: y + H, climbable: true, platform: true });

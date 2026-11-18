@@ -1,0 +1,26 @@
+{
+  "hydro": {
+    "file": "hydro.glb",
+    "name": "Futuristic Hover Car",
+    "faces": 51704,
+    "rotY": 3.14159
+  },
+  "chenille": {
+    "file": "chenille.glb",
+    "name": "Drilling_Rig_01A_c4d",
+    "faces": 43060,
+    "rotY": 3.14159
+  },
+  "gyro": {
+    "file": "gyro.glb",
+    "name": "Small Helicopter - C5150",
+    "faces": 6788,
+    "rotY": 3.141592653589793
+  },
+  "marcheur": {
+    "file": "marcheur.glb",
+    "name": "Sonia Mech",
+    "faces": 13973,
+    "rotY": 3.141592653589793
+  }
+}

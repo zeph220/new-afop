@@ -1,6 +1,11 @@
 // Matériau de la flore : vent dans le vertex shader, bioluminescence et ondes de capacité.
 
-import { Color, DoubleSide, FrontSide, MeshStandardMaterial } from 'three';
+import { Color, DoubleSide, FrontSide, MeshStandardMaterial, Vector2 } from 'three';
+
+/** Règle la distance de fondu (début, fin) d'un matériau de flore. */
+export function setVegetationFade(mat: MeshStandardMaterial, start: number, end: number): void {
+  (mat.userData.fade as { value: Vector2 }).value.set(start, end);
+}
 import { injectGlobals } from './Globals.ts';
 
 export interface VegMaterialOptions {
@@ -17,6 +22,7 @@ attribute float aFlex;
 uniform float uTime;
 uniform vec3 uWind;
 uniform float uWindAmp;
+uniform vec2 uFade;
 varying float vGlow;
 varying vec3 vVegWorld;
 `;
@@ -27,6 +33,9 @@ const VERT_MAIN = /* glsl */ `
   vec3 instPos = vec3(0.0);
   #ifdef USE_INSTANCING
     instPos = instanceMatrix[3].xyz;
+    // Apparition progressive : la plante « pousse » en approchant de sa distance d'affichage (pas de pop-in).
+    float camD = length(instPos.xz - cameraPosition.xz);
+    transformed *= 1.0 - smoothstep(uFade.x, uFade.y, camD);
   #endif
   float ph = uTime * (1.3 + uWind.z * 0.8) + dot(instPos.xz, vec2(0.13, 0.17));
   float sway = sin(ph) * 0.6 + sin(ph * 2.3 + 1.3) * 0.25;
@@ -79,11 +88,14 @@ export function createVegetationMaterial(o: VegMaterialOptions): MeshStandardMat
   const glowColor = { value: o.glowColor };
   const glowBoost = { value: o.glowBoost ?? 1.6 };
   const windAmp = { value: o.windAmp ?? 1 };
+  const fade = { value: new Vector2(1e6, 1e6 + 1) };
+  mat.userData.fade = fade;
   mat.onBeforeCompile = (shader) => {
     injectGlobals(shader.uniforms);
     shader.uniforms.uGlowColor = glowColor;
     shader.uniforms.uGlowBoost = glowBoost;
     shader.uniforms.uWindAmp = windAmp;
+    shader.uniforms.uFade = fade;
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + VERT_PARS).replace('#include <begin_vertex>', VERT_MAIN);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + FRAG_PARS)

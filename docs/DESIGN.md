@@ -228,9 +228,15 @@ Une monture apprivoisée vient à l'appel (touche R). Monté : Espace = saut ou 
 
 ### 7.1 Pile
 - **Vite + TypeScript + Three.js** (WebGL2 ; WebGPU envisagé en option plus tard).
-- **Rapier** (`@dimforge/rapier3d-compat`) : introduit à l'itération 2 pour les véhicules. À pied, le personnage
-  utilise un contrôleur cinématique qui interroge directement la heightmap analytique (même triangulation que
-  le maillage affiché), ce qui est plus précis et moins coûteux.
+- **Rapier** (`@dimforge/rapier3d-compat` 0.21) : intégré à l'itération 2 pour les véhicules Halden, chargé à la
+  demande (module séparé, WebAssembly embarqué) uniquement quand on joue le Consortium. Tuiles `HeightField` de
+  128 m générées dans les workers autour des corps actifs ; troncs, rochers et structures proches en cylindres fixes ;
+  pas fixe de 60 Hz. À pied et sur les montures, contrôleurs cinématiques sur la heightmap analytique (même
+  triangulation que le maillage affiché) : plus précis et moins coûteux.
+- **Montures** : comportement sauvage (hardes, fuite), apprivoisement par la confiance (§5.1) et monte sans moteur
+  physique ; le Skarel suit un modèle d'énergie (piqué → vitesse, cabré → perte de vitesse, décrochage sous 11 m/s).
+- **Streaming en vol** : préchargement du quadtree à la position prédite (≈ 3 s d'avance) avec une priorité plus basse
+  que l'ensemble affiché.
 - **Supabase** (itération 3) pour les comptes et la sauvegarde ; `localStorage` en secours (déjà actif).
 
 ### 7.2 Terrain

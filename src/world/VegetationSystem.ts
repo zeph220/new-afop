@@ -1,10 +1,10 @@
 // Gestion de la flore instanciée : cellules par couche, streaming autour de la caméra,
 // deux niveaux de détail pour les Colonniers (répartition par instance).
 
-import { BufferGeometry, Color, DynamicDrawUsage, Group, InstancedBufferAttribute, InstancedMesh, Vector3, type Material } from 'three';
+import { BufferGeometry, Color, DynamicDrawUsage, Group, InstancedBufferAttribute, InstancedMesh, Vector3, type Material, type MeshStandardMaterial } from 'three';
 import { VEG_LAYERS, type VegLayerDef, type VegLayerId } from './VegetationPlacement.ts';
 import { geometryFor } from './VegetationGeometry.ts';
-import { createVegetationMaterial } from '../render/VegetationMaterial.ts';
+import { createVegetationMaterial, setVegetationFade } from '../render/VegetationMaterial.ts';
 import type { WorkerPool } from '../core/WorkerPool.ts';
 
 interface CellData {
@@ -29,7 +29,8 @@ export class VegetationSystem {
   readonly group = new Group();
   private cells = new Map<string, Cell>();
   private geos = new Map<string, BufferGeometry>();
-  private mats = new Map<VegLayerId, Material>();
+  private mats = new Map<VegLayerId, Material | Material[]>();
+  private lods = new Map<VegLayerId, { nearGeo: BufferGeometry; nearMat: Material | Material[]; farGeo: BufferGeometry; farMat: Material | Material[]; nearDist: number }>();
   private pool: WorkerPool;
   private frame = 0;
   private lastCam = new Vector3(1e9, 0, 1e9);
@@ -50,7 +51,12 @@ export class VegetationSystem {
     this.mats.set('bloc', createVegetationMaterial({ glowColor: violet, glowBoost: 0, roughness: 0.9, windAmp: 0 }));
     for (const L of VEG_LAYERS) {
       this.geos.set(L.id, geometryFor(L.id, true));
-      if (L.id === 'colonnier') this.geos.set('colonnier-far', geometryFor('colonnier', false));
+      if (L.id === 'colonnier') {
+        this.geos.set('colonnier-far', geometryFor('colonnier', false));
+        const m = this.mats.get('colonnier')!;
+        this.lods.set('colonnier', { nearGeo: this.geos.get('colonnier')!, nearMat: m, farGeo: this.geos.get('colonnier-far')!, farMat: m, nearDist: L.nearDist ?? 300 });
+      }
+      fadeAll(this.mats.get(L.id)!, L.viewDist * 0.8, L.viewDist);
     }
   }
 
@@ -68,6 +74,11 @@ export class VegetationSystem {
     this.density = density;
     this.distance = distance;
     this.shadows = shadows;
+    // Fondu d'apparition sur les derniers 20 % de la distance d'affichage de chaque espèce.
+    for (const L of VEG_LAYERS) {
+      const end = L.viewDist * distance;
+      fadeAll(this.mats.get(L.id)!, end * 0.8, end);
+    }
     for (const c of this.cells.values()) {
       if (c.mesh) c.mesh.castShadow = shadows && c.layer.castShadow;
       if (c.nearMesh) c.nearMesh.castShadow = shadows;
@@ -109,7 +120,7 @@ export class VegetationSystem {
         this.dropCell(c);
         continue;
       }
-      if (c.layer.id === 'colonnier' && c.data) this.splitColonnier(c, cam, d);
+      if (this.lods.has(c.layer.id) && c.data) this.splitColonnier(c, cam, d);
     }
   }
 
@@ -123,7 +134,7 @@ export class VegetationSystem {
         if (this.cells.get(cell.key) !== cell) return;
         cell.data = data;
         if (data.count === 0) return;
-        if (L.id === 'colonnier') {
+        if (this.lods.has(L.id)) {
           cell.lastSplit = null;
           this.splitColonnier(cell, this.lastCam, rectDistance(this.lastCam, cell.cx * L.cellSize, cell.cz * L.cellSize, L.cellSize));
         } else {
@@ -142,7 +153,7 @@ export class VegetationSystem {
       });
   }
 
-  private makeMesh(geo: BufferGeometry, mat: Material, capacity: number, castShadow: boolean): InstancedMesh {
+  private makeMesh(geo: BufferGeometry, mat: Material | Material[], capacity: number, castShadow: boolean): InstancedMesh {
     const m = new InstancedMesh(geo, mat, capacity);
     m.instanceMatrix.setUsage(DynamicDrawUsage);
     m.instanceColor = new InstancedBufferAttribute(new Float32Array(capacity * 3), 3);
@@ -152,22 +163,23 @@ export class VegetationSystem {
     return m;
   }
 
-  /** Répartit les Colonniers d'une cellule entre modèle détaillé (proche) et simplifié (loin). */
+  /** Répartit les instances d'une cellule entre modèle détaillé (proche) et simplifié (loin). */
   private splitColonnier(c: Cell, cam: Vector3, cellDist: number): void {
     const L = c.layer;
-    const nearDist = (L.nearDist ?? 300) * Math.max(0.7, this.distance);
+    const lod = this.lods.get(L.id)!;
+    const nearDist = lod.nearDist * Math.max(0.7, this.distance);
     const data = c.data!;
     if (data.count === 0) return;
-    const allFar = cellDist > nearDist + 30;
+    const allFar = cellDist > nearDist + 10;
     if (c.lastSplit && allFar && !c.nearMesh) return; // rien à faire
-    if (c.lastSplit && c.lastSplit.distanceToSquared(cam) < 400) return;
+    if (c.lastSplit && c.lastSplit.distanceToSquared(cam) < Math.min(400, nearDist * nearDist * 0.04)) return;
     c.lastSplit = (c.lastSplit ?? new Vector3()).copy(cam);
     if (!c.mesh) {
-      c.mesh = this.makeMesh(this.geos.get('colonnier-far')!, this.mats.get('colonnier')!, data.count, false);
+      c.mesh = this.makeMesh(lod.farGeo, lod.farMat, data.count, L.id === 'colonnier' ? false : L.castShadow && this.shadows);
       this.group.add(c.mesh);
     }
     if (!c.nearMesh && !allFar) {
-      c.nearMesh = this.makeMesh(this.geos.get('colonnier')!, this.mats.get('colonnier')!, data.count, this.shadows);
+      c.nearMesh = this.makeMesh(lod.nearGeo, lod.nearMat, data.count, this.shadows && (L.id === 'colonnier' || L.castShadow));
       this.group.add(c.nearMesh);
     }
     const farM = c.mesh.instanceMatrix.array as Float32Array;
@@ -215,11 +227,28 @@ export class VegetationSystem {
     this.cells.delete(c.key);
   }
 
+  /** Remplace l'aspect d'une couche (modèle photoréaliste) ; les cellules existantes sont mises à jour. */
+  override(id: VegLayerId, geo: BufferGeometry, mats: Material[], nearDist: number): void {
+    const L = VEG_LAYERS.find((l) => l.id === id);
+    if (!L) return;
+    // Le modèle détaillé n'est utilisé que près de la caméra ; au-delà, la version procédurale légère.
+    const farGeo = this.geos.get(id === 'colonnier' ? 'colonnier-far' : id)!;
+    this.lods.set(id, { nearGeo: geo, nearMat: mats, farGeo, farMat: this.mats.get(id)!, nearDist });
+    const end = L.viewDist * this.distance;
+    fadeAll(mats, end * 0.8, end);
+    for (const c of [...this.cells.values()]) if (c.layer.id === id) this.dropCell(c);
+    this.lastCam.set(1e9, 0, 1e9);
+  }
+
   get pendingCount(): number {
     let n = 0;
     for (const c of this.cells.values()) if (c.pending) n++;
     return n;
   }
+}
+
+function fadeAll(m: Material | Material[], start: number, end: number): void {
+  for (const x of Array.isArray(m) ? m : [m]) setVegetationFade(x as MeshStandardMaterial, start, end);
 }
 
 function rectDistance(p: Vector3, x0: number, z0: number, size: number): number {

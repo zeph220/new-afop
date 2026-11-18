@@ -26,6 +26,8 @@ const nMarsh = n(11);
 const nRiver = n(12);
 const nEdge = n(13);
 const nForest = n(14);
+const nErode = n(15);
+const nRough = n(16);
 
 /** Résultat détaillé d'un échantillon du monde (réutilisé pour éviter les allocations). */
 export interface WorldSample {
@@ -102,6 +104,15 @@ function baseSample(x: number, z: number, out: WorldSample): WorldSample {
   h += r * r * (16 + 90 * east);
   h += 38 * east + 8 * west;
 
+  // Relief érodé : réseau de ravines et de contreforts (crêtes déformées), plus marqué en altitude,
+  // puis rugosité fine de 1 à 2 m. Casse l'aspect « collines lisses » de la génération par zones.
+  const hilly = smoothstep(26, 75, h);
+  const er = ridged(nErode, wx / 230 + 0.35 * detail, wz / 230 - 0.3 * detail, 4);
+  h += (er * er - 0.28) * (5 + 26 * hilly) * (1 - south * 0.9);
+  const gully = ridged(nErode, wx / 75 + 13.1, wz / 75 - 4.2, 2);
+  h -= gully * gully * (0.6 + 3.2 * hilly) * (1 - south);
+  h += fbm(nRough, x / 17, z / 17, 2) * (0.45 + 1.4 * hilly) + fbm(nRough, x / 6.5 + 50, z / 6.5, 1) * 0.25;
+
   // Tables de Sorr : plateaux à falaises, certaines faces en pente d'éboulis praticable.
   let mesa = 0;
   const m = fbm(nMesa, wx / 650, wz / 650, 3) + 0.62 * north - 0.44;
@@ -111,7 +122,13 @@ function baseSample(x: number, z: number, out: WorldSample): WorldSample {
     mesa = smoothstep(-sharp, sharp, m);
     if (mesa > 0) {
       const top = 150 + 45 * fbm(nMesaTop, x / 600, z / 600, 2) + 3 * detail;
-      h = lerp(h, Math.max(h, top), mesa);
+      const t = lerp(h, Math.max(h, top), mesa);
+      // Strates : corniches successives sur les flancs (comme une roche sédimentaire).
+      const step = 8.5;
+      const f = t / step - Math.floor(t / step);
+      const terraced = (Math.floor(t / step) + smoothstep(0.55, 0.95, f)) * step;
+      const flank = 4 * mesa * (1 - mesa);
+      h = lerp(t, terraced, Math.min(1, flank * 1.6) * 0.7);
     }
   }
 

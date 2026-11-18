@@ -111,11 +111,27 @@ export class TerrainSystem {
     if (this.frame % 120 === 0) this.evict();
   }
 
-  private requestNode(n: TerrainNode, cam: Vector3): void {
+  /**
+   * Préchargement : génère dès maintenant les nœuds dont la caméra aura besoin à la position prédite
+   * (vol rapide), avec une priorité plus basse que l'ensemble courant.
+   */
+  prefetch(predicted: Vector3): void {
+    const list: TerrainNode[] = [];
+    this.select(MAX_LOD, 0, 0, predicted, list);
+    this.prefetchKeys = new Set(list.map((n) => n.key));
+    for (const n of list) {
+      n.lastUsed = this.frame;
+      if (!n.mesh && !n.pending) this.requestNode(n, predicted, 400);
+    }
+  }
+
+  private prefetchKeys = new Set<string>();
+
+  private requestNode(n: TerrainNode, cam: Vector3, priorityOffset = 0): void {
     n.pending = true;
     const morphEnd = n.lod >= MAX_LOD ? 1e9 : this.ranges[n.lod] * 0.95;
-    const dist = this.boxDistance(n, cam);
-    const want = () => this.desiredKeys.includes(n.key) || this.shown.has(n.key);
+    const dist = this.boxDistance(n, cam) + priorityOffset;
+    const want = () => this.desiredKeys.includes(n.key) || this.shown.has(n.key) || this.prefetchKeys.has(n.key);
     this.pool
       .request<NodeMeshData>({ type: 'node', x0: n.x0, z0: n.z0, size: n.size, morphEnd }, dist, want)
       .then((data) => {

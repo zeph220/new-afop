@@ -330,10 +330,19 @@ export class CharacterModel {
     return lamp;
   }
 
+  /** Posture de monte : « à califourchon » (créatures) ou « assis » (véhicules). */
+  rideMode: 'none' | 'astride' | 'seated' = 'none';
+
   update(dt: number, p: PlayerController): void {
     const r = this.rig;
-    this.root.position.set(p.pos.x, p.pos.y, p.pos.z);
-    this.root.rotation.y = p.yaw;
+    if (this.rideMode === 'none') {
+      this.root.position.set(p.pos.x, p.pos.y, p.pos.z);
+      this.root.rotation.set(0, p.yaw, 0);
+    } else {
+      // Le modèle est enfant de la selle / du siège : bassin posé dessus.
+      this.root.position.set(0, this.rideMode === 'astride' ? 0.12 - this.hipY : 0.5 - this.hipY, 0);
+      this.root.rotation.set(0, 0, 0);
+    }
     const spd = p.horizontalSpeed;
     const run = Math.min(1, spd / p.f.run);
     const k = 1 - Math.exp(-14 * dt);
@@ -418,6 +427,29 @@ export class CharacterModel {
       T.torsoX = 0.15;
       T.headX = -0.3;
     }
+    let legZ = 0;
+    if (this.rideMode !== 'none') {
+      const seated = this.rideMode === 'seated';
+      Object.assign(T, {
+        hipsY: this.hipY,
+        hipsX: 0,
+        torsoX: seated ? 0.05 : -0.18,
+        legL: seated ? 1.45 : 0.55,
+        legR: seated ? 1.45 : 0.55,
+        shinL: seated ? -1.4 : -0.9,
+        shinR: seated ? -1.4 : -0.9,
+        armL: 0.75,
+        armR: 0.75,
+        armLz: -0.15,
+        armRz: 0.15,
+        foreL: 0.6,
+        foreR: 0.6,
+        headX: 0,
+      });
+      legZ = seated ? 0.12 : 0.5;
+    }
+    r.legL.rotation.z += (-legZ - r.legL.rotation.z) * k;
+    r.legR.rotation.z += (legZ - r.legR.rotation.z) * k;
     r.hips.position.y += (T.hipsY - r.hips.position.y) * k;
     r.hips.rotation.x += (T.hipsX - r.hips.rotation.x) * k;
     r.torso.rotation.x += (T.torsoX - r.torso.rotation.x) * k;

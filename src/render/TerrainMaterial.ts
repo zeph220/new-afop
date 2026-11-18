@@ -82,7 +82,7 @@ const FRAG_MAP = /* glsl */ `
 vec3 tN = normalize(vTWNormal);
 float tDist = distance(vTWPos, cameraPosition);
 float tSlope = 1.0 - tN.y;
-vec2 tuv = vTWPos.xz * 0.22;
+vec2 tuv = vTWPos.xz * 0.32; // ≈ 3 m par répétition (taille réelle des scans)
 vec2 tdx = dFdx(tuv);
 vec2 tdy = dFdy(tuv);
 vec3 tpdx = dFdx(vTWPos);
@@ -93,19 +93,43 @@ float tMacro2 = tNoise(vTWPos.xz * 0.0125 + 3.7) * 0.7 + tNoise(vTWPos.xz * 0.04
 // Poids calculés AVANT l'échantillonnage : on ne lit que les matériaux présents.
 float wR = smoothstep(0.2, 0.4, tSlope + (tMacro - 0.5) * 0.12);
 float wS = (1.0 - smoothstep(0.5, 2.6, vTWPos.y - uWaterLevel + (tMacro - 0.5) * 1.6)) * (1.0 - wR);
-float wH = smoothstep(0.55, 0.78, tMacro2 + (tMacro - 0.5) * 0.3) * (1.0 - wR) * (1.0 - wS);
-float wM = max(0.0, 1.0 - wR - wS - wH);
+// Variation au mètre : bruit fin qui découpe les sols en plaques (pas de grands fondus uniformes).
+float tFine = tNoise(vTWPos.xz * 0.9) * 0.6 + tNoise(vTWPos.xz * 2.3 + 7.1) * 0.4;
+float wH = smoothstep(0.5, 0.7, tMacro2 + (tMacro - 0.5) * 0.3 + (tFine - 0.5) * 0.35) * (1.0 - wR) * (1.0 - wS);
+// Litière de feuilles sous le couvert forestier.
+float wF = smoothstep(0.2, 0.55, vTForest + (tFine - 0.5) * 0.6 + (tMacro - 0.5) * 0.2) * (1.0 - wR) * (1.0 - wS);
+wH *= 1.0 - wF * 0.7;
+float wM = max(0.0, 1.0 - wR - wS - wH - wF);
 bool tNear = tDist < 360.0;
 const vec4 FLAT = vec4(0.5, 0.5, 1.0, 0.5);
 
 vec4 aMoss = textureGrad(tAlbedoArr, vec3(tuv, 0.0), tdx, tdy);
+// Anti-répétition : au loin, mélange avec une lecture à plus grande échelle.
+float tFarMix = smoothstep(25.0, 110.0, tDist);
+if (tFarMix > 0.0) {
+  vec2 uvL = tuv * 0.19 + vec2(0.37, 0.71);
+  vec4 aL = textureGrad(tAlbedoArr, vec3(uvL, 0.0), tdx * 0.19, tdy * 0.19);
+  aMoss = mix(aMoss, aL, tFarMix * 0.5);
+}
 vec4 nMoss = tNear ? textureGrad(tNormalArr, vec3(tuv, 0.0), tdx, tdy) : FLAT;
 vec4 aHum = vec4(0.0);
 vec4 nHum = FLAT;
 if (wH > 0.01) {
-  vec2 u2 = tuv * 0.85 + 0.31;
-  aHum = textureGrad(tAlbedoArr, vec3(u2, 1.0), tdx * 0.85, tdy * 0.85);
-  if (tNear) nHum = textureGrad(tNormalArr, vec3(u2, 1.0), tdx * 0.85, tdy * 0.85);
+  vec2 u2 = tuv * 1.5 + 0.31;
+  aHum = textureGrad(tAlbedoArr, vec3(u2, 1.0), tdx * 1.5, tdy * 1.5);
+  if (tNear) nHum = textureGrad(tNormalArr, vec3(u2, 1.0), tdx * 1.5, tdy * 1.5);
+}
+vec4 aLeaf = vec4(0.0);
+vec4 nLeaf = FLAT;
+if (wF > 0.01) {
+  // Deux lectures (échelle et rotation différentes) mêlées par un bruit : la répétition disparaît.
+  const mat2 ROT = mat2(0.8, -0.6, 0.6, 0.8);
+  vec2 u4 = tuv * 1.15 + 0.53;
+  vec2 u5 = ROT * tuv * 0.47 + 0.19;
+  float lm = smoothstep(0.3, 0.7, tFine);
+  aLeaf = mix(textureGrad(tAlbedoArr, vec3(u4, 4.0), tdx * 1.15, tdy * 1.15), textureGrad(tAlbedoArr, vec3(u5, 4.0), ROT * tdx * 0.47, ROT * tdy * 0.47), lm);
+  aLeaf.rgb *= vec3(0.78, 0.74, 0.7);
+  if (tNear) nLeaf = mix(textureGrad(tNormalArr, vec3(u4, 4.0), tdx * 1.15, tdy * 1.15), textureGrad(tNormalArr, vec3(u5, 4.0), ROT * tdx * 0.47, ROT * tdy * 0.47), lm);
 }
 vec4 aSil = vec4(0.0);
 vec4 nSil = FLAT;
@@ -119,7 +143,7 @@ vec3 rockN = tN;
 vec4 aR = vec4(0.5);
 float rockH = 0.5;
 if (wR > 0.01) {
-  float rs = 0.12;
+  float rs = 0.2; // ≈ 5 m par répétition sur les falaises
   vec3 bw = pow(abs(tN), vec3(4.0));
   bw /= (bw.x + bw.y + bw.z);
   vec2 uvX = vTWPos.zy * rs; vec2 dxX = tpdx.zy * rs; vec2 dyX = tpdy.zy * rs;
@@ -159,21 +183,32 @@ if (wR > 0.01) {
   }
 }
 
+// Variations de teinte à grande échelle (évite les aplats uniformes par zone).
+float tHue = tNoise(vTWPos.xz * 0.0031 + 9.0) * 0.6 + tNoise(vTWPos.xz * 0.011 - 4.0) * 0.4;
+vec3 tTint = mix(vec3(0.86, 0.92, 0.84), vec3(1.1, 1.0, 0.9), tHue);
+aMoss.rgb *= tTint;
+aHum.rgb *= tTint;
+aLeaf.rgb *= mix(vec3(1.0), tTint, 0.6);
 // Strates à grande échelle sur les falaises (gris-bleu / ocre rouillé).
 float tBand = 0.5 + 0.5 * sin(vTWPos.y * 0.55 + tMacro * 4.0);
 aR.rgb = mix(aR.rgb, aR.rgb * vec3(1.18, 0.97, 0.8), smoothstep(0.55, 0.9, tBand));
 
+// Mélange par hauteur (les reliefs de chaque matériau dépassent des autres).
 vec4 tW = vec4(wM, wH, wR, wS) * (vec4(nMoss.a, nHum.a, rockH, nSil.a) + 0.4);
+float tWF = wF * (nLeaf.a + 0.4);
 tW = tW * tW * tW;
-tW /= (tW.x + tW.y + tW.z + tW.w + 1e-5);
+tWF = tWF * tWF * tWF;
+float tWsum = tW.x + tW.y + tW.z + tW.w + tWF + 1e-5;
+tW /= tWsum;
+tWF /= tWsum;
 
 // Prairies dorées au sommet des Tables.
 vec3 mossCol = mix(aMoss.rgb, aMoss.rgb * vec3(1.35, 1.15, 0.6), smoothstep(110.0, 150.0, vTWPos.y) * 0.8);
-vec3 tAlb = mossCol * tW.x + aHum.rgb * tW.y + aR.rgb * tW.z + aSil.rgb * tW.w;
-float tRough = aMoss.a * tW.x + aHum.a * tW.y + aR.a * tW.z + aSil.a * tW.w;
+vec3 tAlb = mossCol * tW.x + aHum.rgb * tW.y + aR.rgb * tW.z + aSil.rgb * tW.w + aLeaf.rgb * tWF;
+float tRough = aMoss.a * tW.x + aHum.a * tW.y + aR.a * tW.z + aSil.a * tW.w + aLeaf.a * tWF;
 
 // Normale : projection verticale (whiteout) pour les sols, triplanaire pour la roche.
-vec3 tTop = tUnpack(nMoss) * tW.x + tUnpack(nHum) * tW.y + tUnpack(nSil) * tW.w + vec3(0.0, 0.0, 1.0) * tW.z;
+vec3 tTop = tUnpack(nMoss) * tW.x + tUnpack(nHum) * tW.y + tUnpack(nSil) * tW.w + tUnpack(nLeaf) * tWF + vec3(0.0, 0.0, 1.0) * tW.z;
 tTop = vec3(tTop.xy + tN.xz, abs(tTop.z) * tN.y);
 vec3 tNormalW = normalize(tTop.xzy * (1.0 - tW.z) + rockN * tW.z);
 

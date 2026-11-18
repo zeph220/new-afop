@@ -15,9 +15,9 @@ export interface QualityParams {
 }
 
 export const QUALITY: Record<Exclude<QualityPreset, 'auto'>, QualityParams> = {
-  elevee: { pixelRatio: 1.0, terrainRange: 2.2, vegDensity: 1, vegDistance: 1, shadows: true, shadowMap: 2048, bloom: true, triplanar: true, textureSize: 1024 },
-  moyenne: { pixelRatio: 0.85, terrainRange: 1.9, vegDensity: 0.75, vegDistance: 0.8, shadows: true, shadowMap: 1024, bloom: true, triplanar: true, textureSize: 1024 },
-  basse: { pixelRatio: 0.7, terrainRange: 1.6, vegDensity: 0.5, vegDistance: 0.6, shadows: false, shadowMap: 512, bloom: false, triplanar: false, textureSize: 512 },
+  elevee: { pixelRatio: 1.0, terrainRange: 3.4, vegDensity: 1, vegDistance: 1.45, shadows: true, shadowMap: 2048, bloom: true, triplanar: true, textureSize: 4096 },
+  moyenne: { pixelRatio: 0.85, terrainRange: 2.8, vegDensity: 0.75, vegDistance: 1.1, shadows: true, shadowMap: 1024, bloom: true, triplanar: true, textureSize: 2048 },
+  basse: { pixelRatio: 0.7, terrainRange: 2.2, vegDensity: 0.5, vegDistance: 0.8, shadows: false, shadowMap: 512, bloom: false, triplanar: false, textureSize: 1024 },
 };
 
 export interface Settings {

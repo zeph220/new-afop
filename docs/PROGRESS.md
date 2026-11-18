@@ -54,7 +54,66 @@
 4. Véhicules Halden : gyrocoptère, marcheur, chenillé, hydroglisseur (énergie, dégâts simples).
 
 ## Itération 2 — Mobilité
-*À venir.*
+
+**Statut : implémentée, 34 tests verts, vérifiée dans le navigateur — à valider en jeu réel ; non commitée (git
+indisponible sur la machine au moment du travail) ; non déployée (connexion Cloudflare à faire).**
+
+### Résumé
+1. **Rapier 0.21** intégré, chargé à la demande pour les Halden (module séparé de 4,1 Mo) : tuiles HeightField de 128 m
+   générées dans les workers autour des corps actifs, troncs/rochers/structures en cylindres fixes, pas fixe de 60 Hz.
+2. **Véhicules Halden** (`src/entities/Vehicles.ts`) : gyrocoptère (portance, assiette pilotée, autorotation, effet de
+   sol), marcheur cinématique à 4 pattes (démarche en diagonale, IK, pente max 38°, enjambement), chenillé (contrôleur à
+   rayons, 12 roues virtuelles, direction différentielle, foreuse → échantillons d'orvène), hydroglisseur (flottabilité
+   sur 4 points, hélice, gouvernes, quille, déjaugeage). Énergie, dégâts de choc, hors service + rapatriement, recharge
+   au dépôt de Kessel, **livraison par drone (R)**.
+3. **Montures Sylmar** (`src/entities/Creatures.ts`) : hardes sauvages par habitat (Skarel sur les Tables, Tormaq près
+   de l'eau, Vexil dans les clairières), fuite, **apprivoisement** (offrande accroupi, trois appels en rythme, harnais),
+   appel (R), monte. Tormaq lent et puissant (charge), Vexil rapide (sprint 16 m/s, bond, crécelle), Skarel planeur
+   (modèle d'énergie, battements, piqué, décrochage, colonnes thermiques, atterrissage).
+4. **Flux sans pop-in en vol** : préchargement du terrain à la position prédite (≈ 3 s), flore qui « pousse » sur les
+   derniers 20 % de sa distance d'affichage, créatures lointaines masquées.
+5. HUD de monte/pilotage, panneau d'apprivoisement avec indicateur de rythme, sons synthétisés (moteurs, cris, ailes,
+   chocs), sauvegarde des montures, véhicules, énergie/structure et orvène.
+
+### Critères d'acceptation
+| Critère | État |
+|---|---|
+| Montures et véhicules utilisables et distincts | ✅ tests (vitesses, vol, apprivoisement, physique des 4 véhicules sur le vrai terrain de Kessel) + gyrocoptère piloté dans le navigateur |
+| Vol d'un bout à l'autre du monde sans pop-in gênant | 🟡 mécanismes en place (préchargement, fondu de la flore) ; traversée complète à confirmer en jeu réel |
+
+### Reste / limites
+- Commit à faire (git introuvable dans le PATH de PowerShell) et mise en ligne Cloudflare (`npx wrangler login`, puis `npm run deploy`).
+- Modèles des véhicules volontairement simples (écrits rapidement) ; modèles des créatures plus détaillés.
+- Le chenillé n'écrase pas encore la petite végétation ; pas de faune hostile (itération 3).
+
+### Retouches demandées (11/11/2026)
+- Chenillé garé 10 m plus loin de l'aire de fret de Kessel (≈ 52 m).
+- Les véhicules restent où on les a laissés : position et orientation sauvegardées (retour au dépôt seulement s'ils
+  sont hors service, tombés sous le terrain, ou pour les anciennes sauvegardes).
+- Terrain photoréaliste : scans Poly Haven CC0 (sol forestier, boue et feuilles, paroi rocheuse, boue) en 4K
+  (qualité élevée), 2K (moyenne), 1K (basse), chargés dans les workers ; repli procédural si absents ; échelles
+  réelles (≈ 3 m par répétition) et anti-répétition au loin. Version bureau servie par un protocole `app://`.
+- La flore, les personnages et les véhicules restent en géométrie procédurale stylisée.
+
+### Extension gameplay (11/11/2026)
+- **Vent** global (`src/world/Wind.ts`) : cap qui tourne, rafales, force selon la météo ; agit sur la flore, la pluie,
+  le vol du Skarel, le gyrocoptère, les flèches, l'odorat de la faune ; indicateur dans le HUD.
+- **Objets et fabrication** (`src/gameplay/Items.ts`) : 26 objets, 15 recettes (dont établi et feu), améliorations
+  d'armes et d'armure ; inventaire (Tab/I), soin rapide et pose de feu de camp (G).
+- **Armes** : Sylmar — arc (tension, gravité, vent ; flèches simples ou à résine), lance, couteau ; Halden — pulseur
+  sismique (cellules), lance-fusées (lumière, fait fuir les prédateurs), clé de forage. Clic gauche, clic droit pour
+  viser, X pour changer.
+- **Faune aléatoire** (`src/gameplay/Fauna.ts`) : 8 espèces (proies en troupeau, territorial, meute de prédateurs,
+  rôdeur solitaire, échassier, nuées d'oiseaux, fouisseur, carapace), apparition par habitat renouvelée toutes les
+  5 min, perception (accroupi, course, nuit, odeur portée par le vent), dégâts, dépouille à dépecer.
+- **Santé et satiété**, dégâts de chute, évanouissement → retour au camp ; repos et sommeil près d'un feu.
+- **Monde interactif** : paniers de Vehra-Tal, caisses de Kessel, caches aléatoires, plantes et minerais à récolter,
+  troncs et rochers à exploiter, établis, feux.
+- **Photoréalisme** : sol en 5 matériaux scannés (dont litière de feuilles) découpés au mètre ; fougères, plantes et
+  rochers scannés (Poly Haven) affichés près du joueur, version légère au loin.
+- Limites : arbres (Colonniers, Arqués), personnages, bâtiments et véhicules restent procéduraux — les arbres scannés
+  CC0 disponibles pèsent 58 à 900 Mo chacun (inutilisables en temps réel). Animaux glTF : `npm run fetch:fauna` une fois
+  la clé Sketchfab placée dans `.env.local`.
 
 ## Itération 3 — Comptes, contenu et finition
 *À venir.*

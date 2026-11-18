@@ -1,0 +1,10 @@
+{
+  "cornard": { "file": "cornard.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Bull_game_rig|Bull_game_Idle", "walk": "Bull_game_rig|Bull_game_walk", "run": "Bull_game_rig|Bull_game_Trot", "graze": "Bull_game_rig|Bull_game_Idle" } },
+  "rodeur": { "file": "rodeur.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Animation", "walk": "Animation", "run": "Animation" } },
+  "echassier": { "file": "echassier.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "flight", "fly": "flight" } },
+  "nuee": { "file": "nuee.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Idle_A", "walk": "Walk", "run": "Run", "attack": "Attack", "dead": "Death", "fly": "Fly", "graze": "Eat" } },
+  "carapace": { "file": "carapace.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Animation", "walk": "Animation", "run": "Animation" } },
+  "ruminel": { "file": "ruminel.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "GltfAnimation 0", "walk": "GltfAnimation 0", "run": "GltfAnimation 0" } },
+  "fouisseur": { "file": "fouisseur.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Take 001", "walk": "Take 001", "run": "Take 001" } },
+  "griffal": { "file": "griffal.glb", "scale": 0, "rotY": 3.141592653589793, "clips": { "idle": "Scene", "walk": "Scene", "run": "Scene" } }
+}

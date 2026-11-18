@@ -2,13 +2,17 @@
 // Worker de génération : maillages de terrain, instances de végétation, textures procédurales.
 
 import { buildNodeMesh } from './TerrainMesh.ts';
+import { heightAt } from './WorldGen.ts';
 import { placeCell, INSTANCE_STRIDE, type VegLayerId } from './VegetationPlacement.ts';
 import { generateMaterialTexture, type TerrainMaterialId } from '../textures/TextureGen.ts';
+import { loadPhotoTexture } from '../textures/PhotoTextures.ts';
 
 export type WorkerRequest =
   | { type: 'node'; x0: number; z0: number; size: number; morphEnd: number }
   | { type: 'veg'; layer: VegLayerId; cx: number; cz: number; density: number }
-  | { type: 'tex'; material: TerrainMaterialId; size: number };
+  | { type: 'tex'; material: TerrainMaterialId; size: number }
+  | { type: 'hf'; x0: number; z0: number; size: number; cells: number }
+  | { type: 'photo'; material: TerrainMaterialId; size: number; baseUrl: string };
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -57,9 +61,23 @@ ctx.onmessage = (e: MessageEvent<{ id: number; req: WorkerRequest }>) => {
         colors[i * 3 + 2] = b * (1 - 0.12 * (t - 0.5));
       }
       ctx.postMessage({ id, result: { count: n, matrices, colors } }, [matrices.buffer, colors.buffer]);
+    } else if (req.type === 'hf') {
+      // Tuile de collision Rapier : matrice colonne-majeure, lignes le long de Z, colonnes le long de X.
+      const n = req.cells + 1;
+      const step = req.size / req.cells;
+      const h = new Float32Array(n * n);
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) h[j + i * n] = heightAt(req.x0 + i * step, req.z0 + j * step);
+      }
+      ctx.postMessage({ id, result: h }, [h.buffer]);
     } else if (req.type === 'tex') {
       const t = generateMaterialTexture(req.material, req.size);
       ctx.postMessage({ id, result: t }, [t.albedoRough.buffer, t.normalHeight.buffer]);
+    } else if (req.type === 'photo') {
+      loadPhotoTexture(req.material, req.size, req.baseUrl).then(
+        (t) => ctx.postMessage({ id, result: t }, [t.albedoRough.buffer, t.normalHeight.buffer]),
+        (err) => ctx.postMessage({ id, error: String(err) }),
+      );
     }
   } catch (err) {
     ctx.postMessage({ id, error: String(err) });

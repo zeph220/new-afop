@@ -1,0 +1,12 @@
+{
+  "arque": {
+    "file": "arque.glb",
+    "name": "Realistic Cracked Tree Game-Ready prop",
+    "faces": 3509
+  },
+  "colonnier": {
+    "file": "colonnier.glb",
+    "name": "Treehouse Giant tree",
+    "faces": 14785
+  }
+}

@@ -3,7 +3,7 @@
 
 import { createTileableNoise, tileFbm, hash2, type TileNoise } from '../world/noise.ts';
 
-export const TERRAIN_MATERIALS = ['mousse', 'humus', 'roche', 'limon'] as const;
+export const TERRAIN_MATERIALS = ['mousse', 'humus', 'roche', 'limon', 'feuilles'] as const;
 export type TerrainMaterialId = (typeof TERRAIN_MATERIALS)[number];
 
 export interface MaterialTexture {
@@ -169,7 +169,7 @@ function linearToSrgb8(c: number): number {
 export function generateMaterialTexture(id: TerrainMaterialId, size: number): MaterialTexture {
   const noise = createTileableNoise(1000 + TERRAIN_MATERIALS.indexOf(id) * 77);
   const shader =
-    id === 'mousse' ? mossShader(noise) : id === 'humus' ? humusShader(noise) : id === 'roche' ? rockShader(noise) : siltShader(noise);
+    id === 'mousse' ? mossShader(noise) : id === 'humus' || id === 'feuilles' ? humusShader(noise) : id === 'roche' ? rockShader(noise) : siltShader(noise);
   const albedoRough = new Uint8Array(size * size * 4);
   const normalHeight = new Uint8Array(size * size * 4);
   const heights = new Float32Array(size * size);

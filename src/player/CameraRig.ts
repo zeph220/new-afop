@@ -35,7 +35,7 @@ export class CameraRig {
     this.yaw -= input.lookX * 2.6 * this.sensitivity * dt;
     this.pitch += input.lookY * 1.8 * this.sensitivity * dt * (this.invertY ? -1 : 1);
     this.pitch = Math.max(-1.0, Math.min(1.25, this.pitch));
-    if (input.wheel) this.targetDistance = Math.max(2.2, Math.min(18, this.targetDistance * (1 + input.wheel * 0.12)));
+    if (input.wheel && !input.held('quick')) this.targetDistance = Math.max(2.2, Math.min(18, this.targetDistance * (1 + input.wheel * 0.12)));
   }
 
   snap(): void {

@@ -1,7 +1,7 @@
 // Entrées clavier / souris / manette, ramenées à des actions de jeu.
 // Le clavier utilise les codes physiques (KeyW = Z sur AZERTY, W sur QWERTY).
 
-export type Action = 'jump' | 'sprint' | 'crouch' | 'ability' | 'lamp' | 'interact' | 'pause' | 'help' | 'map';
+export type Action = 'jump' | 'sprint' | 'crouch' | 'ability' | 'lamp' | 'interact' | 'pause' | 'help' | 'map' | 'call' | 'engine' | 'attack' | 'aim' | 'inventory' | 'weapon' | 'use' | 'quick' | 'quickMode';
 
 const KEYMAP: Record<string, Action> = {
   Space: 'jump',
@@ -15,6 +15,16 @@ const KEYMAP: Record<string, Action> = {
   Escape: 'pause',
   KeyH: 'help',
   KeyM: 'map',
+  KeyR: 'call',
+  KeyV: 'engine',
+  Mouse0: 'attack',
+  Mouse2: 'aim',
+  Tab: 'inventory',
+  KeyI: 'inventory',
+  KeyX: 'weapon',
+  KeyG: 'use',
+  KeyQ: 'quick', // touche A sur un clavier AZERTY
+  KeyT: 'quickMode',
 };
 
 // Boutons de manette standard (mapping « standard » de l'API Gamepad).
@@ -25,6 +35,12 @@ const PADMAP: Partial<Record<Action, number[]>> = {
   lamp: [3],
   sprint: [6, 10],
   interact: [5],
+  call: [4],
+  engine: [11],
+  attack: [7],
+  weapon: [12],
+  inventory: [13],
+  use: [14],
   pause: [9],
   help: [8],
 };
@@ -62,6 +78,13 @@ export class Input {
       this.mouseDX += e.movementX;
       this.mouseDY += e.movementY;
     });
+    window.addEventListener('mousedown', (e) => {
+      if (!this.pointerLocked) return;
+      this.keys.add('Mouse' + e.button);
+      this.pressedKeys.add('Mouse' + e.button);
+    });
+    window.addEventListener('mouseup', (e) => this.keys.delete('Mouse' + e.button));
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('wheel', (e) => {
       if (this.pointerLocked) this.wheel += Math.sign(e.deltaY);
     });
@@ -129,6 +152,27 @@ export class Input {
     for (const code of this.pressedKeys) if (KEYMAP[code] === a) return true;
     for (const b of PADMAP[a] ?? []) if (this.padNow.get(b) && !this.padPrev.get(b)) return true;
     return false;
+  }
+
+  /** Consomme une action déclenchée (elle ne sera plus vue comme « pressée » cette image). */
+  consume(a: Action): void {
+    for (const code of [...this.pressedKeys]) if (KEYMAP[code] === a) this.pressedKeys.delete(code);
+    for (const b of PADMAP[a] ?? []) this.padPrev.set(b, true);
+  }
+
+  /** Chiffre 1–9 pressé pendant cette image (rangée du haut ou pavé numérique), sinon 0. */
+  digitPressed(): number {
+    for (const c of this.pressedKeys) {
+      const m = /^(?:Digit|Numpad)([1-9])$/.exec(c);
+      if (m) return Number(m[1]);
+    }
+    return 0;
+  }
+
+  /** Neutralise déplacements et visée (panneau ouvert). */
+  freeze(): void {
+    this.moveX = this.moveY = this.lookX = this.lookY = 0;
+    this.mouseDX = this.mouseDY = this.wheel = 0;
   }
 
   /** Fin d'image : remet à zéro les deltas. */

@@ -2,6 +2,16 @@
 
 import { FACTIONS, type FactionId } from '../player/Factions.ts';
 import type { QualityPreset, Settings } from '../core/Settings.ts';
+import type { TamingView } from '../entities/Creatures.ts';
+
+/** Panneau de monte / pilotage. */
+export interface RideHud {
+  name: string;
+  speed: number; // m/s
+  gauges: { label: string; value: number; kind: 'stamina' | 'energy' | 'hp' }[];
+  extra: string;
+  hint: string;
+}
 
 export type ScreenId = 'loading' | 'menu' | 'factions' | 'hud' | 'pause' | 'settings' | 'help' | 'credits';
 
@@ -37,6 +47,8 @@ export interface HudData {
   fps: string;
   pointerLocked: boolean;
   usingPad: boolean;
+  ride?: RideHud | null;
+  taming?: TamingView | null;
 }
 
 const h = (html: string): HTMLElement => {
@@ -54,7 +66,17 @@ const CONTROLS = `
 <tr><td>S'accroupir / lâcher prise</td><td><kbd>Ctrl</kbd> ou <kbd>C</kbd> · B</td></tr>
 <tr><td>Escalade (Sylmar)</td><td>Avancer face à une falaise raide ou un tronc de Colonnier</td></tr>
 <tr><td>Capacité de camp</td><td><kbd>F</kbd> · X</td></tr>
-<tr><td>Lampe frontale (Halden)</td><td><kbd>L</kbd> · Y</td></tr>
+<tr><td>Lampe (Halden) / phares</td><td><kbd>L</kbd> · Y</td></tr>
+<tr><td>Monter, piloter, descendre</td><td><kbd>E</kbd> · RB</td></tr>
+<tr><td>Appeler sa monture (Sylmar) · livraison de véhicule par drone (Halden)</td><td><kbd>R</kbd> · LB</td></tr>
+<tr><td>Apprivoiser (Sylmar)</td><td>Approcher accroupi, <kbd>E</kbd> offrande, répondre en rythme avec <kbd>F</kbd>, maintenir <kbd>E</kbd> (harnais)</td></tr>
+<tr><td>Attaquer / tirer</td><td>Clic gauche (maintenir pour tendre l’arc) · clic droit : viser</td></tr>
+<tr><td>Changer d’arme</td><td><kbd>X</kbd></td></tr>
+<tr><td>Panneau rapide (armes / nourriture)</td><td>Maintenir <kbd>A</kbd> · <kbd>T</kbd> : basculer · molette ou 1–9 · clic : valider</td></tr>
+<tr><td>Inventaire, fabrication</td><td><kbd>Tab</kbd> ou <kbd>I</kbd></td></tr>
+<tr><td>Fouiller, récolter, dépecer, se reposer</td><td><kbd>E</kbd> près de l’objet</td></tr>
+<tr><td>Soin rapide / poser un feu</td><td><kbd>G</kbd></td></tr>
+<tr><td>Moteur du gyrocoptère</td><td><kbd>V</kbd></td></tr>
 <tr><td>Aide des commandes</td><td><kbd>H</kbd></td></tr>
 <tr><td>Pause</td><td><kbd>Échap</kbd> · Start</td></tr>
 </table>`;
@@ -69,6 +91,11 @@ export class UI {
   private lastHint = '';
   private compassMarks: HTMLElement[] = [];
   private poiMarks = new Map<string, HTMLElement>();
+
+  /** Calque du HUD (pour les modules qui y ajoutent leurs éléments). */
+  get hudRoot(): HTMLElement {
+    return this.screens.get('hud')!;
+  }
 
   constructor(root: HTMLElement, cb: UICallbacks, settings: Settings) {
     this.root = root;
@@ -128,6 +155,8 @@ export class UI {
         <div class="hint"></div>
         <div class="toasts"></div>
         <div class="fps"></div>
+        <div class="ridepanel"><div class="rp-head"><span class="rp-name"></span><span class="rp-speed"></span></div><div class="rp-gauges"></div><div class="rp-extra"></div></div>
+        <div class="tamepanel"><div class="tp-name"></div><div class="bar tp-trust"><i></i></div><div class="tp-rhythm"><i></i><b></b></div><div class="tp-hint"></div></div>
         <div class="click-to-play">Cliquez pour reprendre le contrôle de la caméra</div>
       </div>`),
     );
@@ -147,6 +176,17 @@ export class UI {
       toasts: hud.querySelector('.toasts')!,
       fps: hud.querySelector('.fps')!,
       clickToPlay: hud.querySelector('.click-to-play')!,
+      ride: hud.querySelector('.ridepanel')!,
+      rideName: hud.querySelector('.rp-name')!,
+      rideSpeed: hud.querySelector('.rp-speed')!,
+      rideGauges: hud.querySelector('.rp-gauges')!,
+      rideExtra: hud.querySelector('.rp-extra')!,
+      tame: hud.querySelector('.tamepanel')!,
+      tameName: hud.querySelector('.tp-name')!,
+      tameTrust: hud.querySelector('.tp-trust i')!,
+      tameRhythm: hud.querySelector('.tp-rhythm')!,
+      tameRhythmFill: hud.querySelector('.tp-rhythm i')!,
+      tameHint: hud.querySelector('.tp-hint')!,
     };
     const labels = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
     for (let i = 0; i < 8; i++) {
@@ -351,6 +391,29 @@ export class UI {
     e.vitalsLabel.textContent = isHalden ? 'Propulseur' : 'Endurance';
     e.vitalsBar.className = 'bar ' + (isHalden ? 'fuel' : 'stamina');
     e.vitalsFill.style.width = `${Math.round((isHalden ? d.fuel : d.stamina) * 100)}%`;
+    e.vitals.style.display = d.ride ? 'none' : '';
+    // Monte / pilotage
+    e.ride.classList.toggle('visible', !!d.ride);
+    if (d.ride) {
+      const r = d.ride;
+      e.rideName.textContent = r.name;
+      e.rideSpeed.textContent = `${Math.round(r.speed * 3.6)} km/h`;
+      const html = r.gauges
+        .map((g) => `<div class="label">${g.label}</div><div class="bar ${g.kind}${g.value < 0.2 ? ' low' : ''}"><i style="width:${Math.round(Math.max(0, Math.min(1, g.value)) * 100)}%"></i></div>`)
+        .join('');
+      if (e.rideGauges.innerHTML !== html) e.rideGauges.innerHTML = html;
+      e.rideExtra.textContent = r.extra;
+    }
+    // Apprivoisement
+    const t = d.taming;
+    e.tame.classList.toggle('visible', !!t);
+    if (t) {
+      e.tameName.textContent = t.phase === 'aucune' ? t.name : `${t.name} — confiance ${Math.round(t.trust)} %`;
+      e.tameTrust.style.width = `${Math.round(t.trust)}%`;
+      e.tameRhythm.style.display = t.rhythm >= 0 || t.harness > 0 ? '' : 'none';
+      e.tameRhythmFill.style.width = `${Math.round((t.harness > 0 ? t.harness : Math.max(0, t.rhythm)) * 100)}%`;
+      e.tameHint.textContent = t.hint;
+    }
     e.abilityName.textContent = d.abilityName;
     e.abilityRing.style.setProperty('--p', `${Math.round(d.abilityReady * 100)}%`);
     if (d.hint !== this.lastHint) {

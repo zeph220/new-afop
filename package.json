@@ -2,25 +2,53 @@
   "name": "veyra",
   "private": true,
   "version": "0.1.0",
-  "description": "Veyra — jeu d'exploration 3D en navigateur (univers original)",
+  "description": "Veyra â€” jeu d'exploration 3D en navigateur (univers original)",
   "type": "module",
+  "main": "electron-main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:exe": "npm run build && electron-builder --win portable --x64",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "check:size": "node scripts/check-size.mjs"
+    "check:size": "node scripts/check-size.mjs",
+    "fetch:fauna": "node scripts/fetch-fauna.mjs",
+    "fetch:models": "node scripts/fetch-models.mjs",
+    "deploy": "npm run build && npm run check:size && npx --yes wrangler@4 pages deploy --branch main"
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.21.0",
     "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "@types/three": "^0.187.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.6",
     "vitest": "^5.1.0"
+  },
+  "build": {
+    "appId": "com.veyra.lunedorun",
+    "productName": "Veyra - Lune d'Orun",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.cjs",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "Veyra-Lune-d-Orun-${version}-Windows.exe"
+    }
   }
 }
